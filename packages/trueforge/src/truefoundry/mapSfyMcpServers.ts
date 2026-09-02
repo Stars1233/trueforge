@@ -27,8 +27,8 @@ const SfyMcpServerRowSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   proxyUrl: z.string().min(1),
-  createdAt: IsoInstantSchema.optional(),
-  updatedAt: IsoInstantSchema.optional(),
+  createdAt: IsoInstantSchema,
+  updatedAt: IsoInstantSchema,
   manifest: z
     .object({
       description: z.string().min(1).optional(),
@@ -55,15 +55,15 @@ export interface SfyMcpServerSummary {
 /** Parse one SFY MCP list row. Throws ZodError on contract drift. */
 export function parseSfyMcpServerSummary(row: unknown): SfyMcpServerSummary {
   const parsed = SfyMcpServerRowSchema.parse(row);
-  const now = new Date().toISOString();
   return {
     id: parsed.id,
     name: parsed.name,
     proxyUrl: parsed.proxyUrl,
+    // SFY description is optional; TrueForge manifests require a non-empty string.
     description: parsed.manifest?.description ?? parsed.name,
     authType: parsed.manifest?.auth_data?.type,
-    createdAt: parsed.createdAt ?? now,
-    updatedAt: parsed.updatedAt ?? now,
+    createdAt: parsed.createdAt,
+    updatedAt: parsed.updatedAt,
   };
 }
 
@@ -83,7 +83,7 @@ export function resolveMcpProxyUrl(input: { proxyUrl: string; gatewayBaseURL: st
 
 /**
  * Gateway proxy as `url`. SFY `oauth2` → wire `dcr` for Connect UX only (UI keys off auth type).
- * Invoke Bearer is intentionally not embedded as `header` auth — that breaks the UI and is a follow-up PR.
+ * Invoke Bearer comes from the MCP store's `resolveInvokeHeaders` — not wire `header` auth.
  */
 export function toTrueFoundryMcpManifest(input: {
   server: SfyMcpServerSummary;

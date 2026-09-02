@@ -66,6 +66,16 @@ describe('parseSfyMcpServerSummary', () => {
     expect(parsed.updatedAt).toBe('2026-02-02T00:00:00.000Z');
   });
 
+  it('throws ZodError when required timestamps are missing', () => {
+    expect(() =>
+      parseSfyMcpServerSummary({
+        id: 'mcp-1',
+        name: 'github',
+        proxyUrl: `${MCP_PROXY_BASE_URL_TEMPLATE}/mcp-server/github`,
+      }),
+    ).toThrow(ZodError);
+  });
+
   it('throws ZodError on contract drift', () => {
     expect(() => parseSfyMcpServerSummary({ id: 'mcp-1', name: 'github' })).toThrow(ZodError);
   });
