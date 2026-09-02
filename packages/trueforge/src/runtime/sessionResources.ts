@@ -134,7 +134,8 @@ function dcrHeadersResolver(params: {
 
 /**
  * Load MCP url + headers for a configured server.
- * DCR uses resolveMcpAuth; header / no-auth use resolveConfiguredMcpRequestHeaders.
+ * - `remote` + `dcr`: resolveMcpAuth via the harness token store.
+ * - header / no-auth: resolveConfiguredMcpRequestHeaders.
  * Returns undefined when the server is not registered — callers choose the response.
  */
 export async function getMcpConnection({
