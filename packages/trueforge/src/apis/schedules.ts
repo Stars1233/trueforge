@@ -3,6 +3,7 @@
  */
 import { OpenAPIHono, type RouteHandler } from '@hono/zod-openapi';
 import { InvalidPageTokenError, type Sessions } from '@truefoundry/trueforge-core/agent-session';
+import type { Context } from 'hono';
 import {
   createdBySubjectFromRequestContext,
   hasAdminRole,
@@ -41,7 +42,7 @@ import { getTurnExecutionError, startTurnInProcess, type BeginTurnExecutionDeps 
 
 export interface SchedulesRouterDeps<TTransaction> {
   scheduleStore: IScheduleStore<TTransaction>;
-  agentStore: IAgentStore<TTransaction>;
+  resolveAgentStore: (c: Context) => IAgentStore<TTransaction>;
   sessions: Sessions;
   turnDeps: BeginTurnExecutionDeps;
   withTransaction: WithTransaction<TTransaction>;
@@ -200,7 +201,7 @@ export function createSchedulesRouter<TTransaction>(deps: SchedulesRouterDeps<TT
       await startScheduleRun({
         item: { run, schedule },
         sessions: deps.sessions,
-        agentStore: deps.agentStore,
+        agentStore: deps.resolveAgentStore(c),
         startTurn: async turnParams => {
           await startTurnInProcess({ ...turnParams, deps: deps.turnDeps });
         },
@@ -235,7 +236,7 @@ export function createSchedulesRouter<TTransaction>(deps: SchedulesRouterDeps<TT
 
     validateManifest(body.manifest);
 
-    const agent = await deps.agentStore.getAgent({
+    const agent = await deps.resolveAgentStore(c).getAgent({
       tenant_id: requestContext.tenant_id,
       name: body.agent_name,
     });

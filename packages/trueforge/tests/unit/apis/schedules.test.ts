@@ -70,7 +70,7 @@ async function setup() {
     '/',
     createSchedulesRouter({
       scheduleStore,
-      agentStore,
+      resolveAgentStore: () => agentStore,
       sessions: {
         getOrCreateByExternalId: () => Promise.reject(new Error('sessions stub: unexpected call')),
       } as never,

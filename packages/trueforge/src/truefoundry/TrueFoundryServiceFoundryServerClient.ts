@@ -11,6 +11,7 @@ import { parseSfyMcpAuthStatus, parseSfyMcpAuthorizeResult, type SfyMcpAuthSourc
 const INTEGRATIONS_PATH = 'v1/provider-integrations';
 const INSTALLATIONS_PATH = 'v1/llm-gateway/installations';
 const MCP_SERVERS_PATH = 'v1/mcp';
+const TFG_AGENTS_PATH = 'internal/tfg/agents';
 const SESSION_PATH = 'v1/session';
 const INTEGRATIONS_PAGE_SIZE = 1000;
 
@@ -55,6 +56,28 @@ const ServiceFoundryErrorSchema = z.object({
   message: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
+/** Wire shape from PUT `/internal/tfg/agents` — keep `agentId` only here. */
+const PutRemoteAgentResponseSchema = z.object({
+  agentId: z.string().min(1),
+});
+
+export interface PutRemoteAgentInput {
+  accessToken: string;
+  name: string;
+  description: string;
+  model: string;
+  mcp_servers: string[];
+}
+
+export interface PutRemoteAgentResult {
+  externalId: string;
+}
+
+export interface DeleteRemoteAgentInput {
+  accessToken: string;
+  externalId: string;
+}
+
 async function readServiceFoundryErrorMessage(
   response: Awaited<ReturnType<typeof undiciFetch>>,
 ): Promise<string | undefined> {
@@ -74,17 +97,27 @@ function listPaginationTotal(response: ListResponse): number | undefined {
 
 export class TrueFoundryServiceFoundryServerClient {
   readonly #baseUrl: string;
-  readonly #logger: Logger | undefined;
+  readonly #logger: Logger;
   readonly #dispatcher: Dispatcher | undefined;
+  readonly #httpTimeoutMs: number;
+  readonly #httpAgentTimeoutMs: number;
 
-  constructor(input: { serviceFoundryServerUrl: string; logger?: Logger; tls?: InternalTlsOptions }) {
-    const tls = input.tls ?? { enabled: false, dir: '' };
+  constructor(input: {
+    serviceFoundryServerUrl: string;
+    logger: Logger;
+    tls: InternalTlsOptions;
+    httpTimeoutMs: number;
+    httpAgentTimeoutMs: number;
+  }) {
+    const tls = input.tls;
     this.#baseUrl = normalizeInternalTlsUrl({ url: input.serviceFoundryServerUrl, enabled: tls.enabled }).replace(
       /\/+$/,
       '',
     );
     this.#dispatcher = createInternalTlsDispatcher(tls);
     this.#logger = input.logger;
+    this.#httpTimeoutMs = input.httpTimeoutMs;
+    this.#httpAgentTimeoutMs = input.httpAgentTimeoutMs;
   }
 
   async listProviderIntegrations(accessToken: string): Promise<unknown[]> {
@@ -160,12 +193,50 @@ export class TrueFoundryServiceFoundryServerClient {
     });
     const rows = listPage(this.#parseListResponse(payload));
     if (rows.length > 1) {
-      this.#logger?.warn('TrueFoundry ServiceFoundry MCP name filter returned multiple rows', {
+      this.#logger.warn('TrueFoundry ServiceFoundry MCP name filter returned multiple rows', {
         name: input.name,
         count: rows.length,
       });
     }
     return rows[0];
+  }
+
+  /** PUT `/internal/tfg/agents` — create/reuse remote agent + sync model/MCP grants. */
+  async putRemoteAgent(input: PutRemoteAgentInput): Promise<PutRemoteAgentResult> {
+    const payload = await this.#requestJson({
+      url: this.#url(TFG_AGENTS_PATH),
+      accessToken: input.accessToken,
+      method: 'PUT',
+      timeoutMs: this.#httpAgentTimeoutMs,
+      body: {
+        name: input.name,
+        description: input.description,
+        model: input.model,
+        mcp_servers: input.mcp_servers,
+      },
+    });
+    const parsed = PutRemoteAgentResponseSchema.safeParse(payload);
+    if (!parsed.success) {
+      this.#logger.error('TrueFoundry ServiceFoundry put remote agent returned an unexpected response', {
+        ...extractErrorLogFields(parsed.error),
+      });
+      throw new HTTPException(424, {
+        message: 'TrueFoundry ServiceFoundry put remote agent returned an unexpected response',
+        cause: parsed.error,
+      });
+    }
+    return { externalId: parsed.data.agentId };
+  }
+
+  /** DELETE `/internal/tfg/agents/:id` — remove remote agent. Missing agent (404) is success. */
+  async deleteRemoteAgent(input: DeleteRemoteAgentInput): Promise<void> {
+    await this.#requestJson({
+      url: this.#url(`${TFG_AGENTS_PATH}/${encodeURIComponent(input.externalId)}`),
+      accessToken: input.accessToken,
+      method: 'DELETE',
+      timeoutMs: this.#httpAgentTimeoutMs,
+      notFoundOk: true,
+    });
   }
 
   /** Per-subject authorize; includes a consent URL when auth is required. */
@@ -190,7 +261,7 @@ export class TrueFoundryServiceFoundryServerClient {
     try {
       return parseSfyMcpAuthorizeResult(payload);
     } catch (error) {
-      this.#logger?.error('TrueFoundry ServiceFoundry MCP authorize returned an unexpected response', {
+      this.#logger.error('TrueFoundry ServiceFoundry MCP authorize returned an unexpected response', {
         mcpServerId: input.mcpServerId,
         ...extractErrorLogFields(error),
       });
@@ -219,7 +290,7 @@ export class TrueFoundryServiceFoundryServerClient {
     try {
       return parseSfyMcpAuthStatus(payload);
     } catch (error) {
-      this.#logger?.error('TrueFoundry ServiceFoundry MCP auth status returned an unexpected response', {
+      this.#logger.error('TrueFoundry ServiceFoundry MCP auth status returned an unexpected response', {
         mcpServerId: input.mcpServerId,
         ...extractErrorLogFields(error),
       });
@@ -287,7 +358,7 @@ export class TrueFoundryServiceFoundryServerClient {
   #parseListResponse(payload: unknown): ListResponse {
     const parsed = ListResponseSchema.safeParse(payload);
     if (!parsed.success) {
-      this.#logger?.error('TrueFoundry ServiceFoundry server returned an unexpected list response', {
+      this.#logger.error('TrueFoundry ServiceFoundry server returned an unexpected list response', {
         ...extractErrorLogFields(parsed.error),
       });
       throw new HTTPException(424, {
@@ -313,8 +384,12 @@ export class TrueFoundryServiceFoundryServerClient {
     accessToken: string;
     method: 'GET' | 'DELETE' | 'POST' | 'PUT';
     body?: unknown;
+    timeoutMs?: number;
+    /** Treat HTTP 404 as success (idempotent DELETE). */
+    notFoundOk?: boolean;
   }): Promise<unknown> {
     const startedAt = Date.now();
+    const timeoutMs = input.timeoutMs ?? this.#httpTimeoutMs;
     const headers: Record<string, string> = {
       accept: 'application/json',
       authorization: `Bearer ${input.accessToken}`,
@@ -330,21 +405,26 @@ export class TrueFoundryServiceFoundryServerClient {
         method: input.method,
         headers,
         ...(body !== undefined ? { body } : {}),
+        signal: AbortSignal.timeout(timeoutMs),
         ...(this.#dispatcher ? { dispatcher: this.#dispatcher } : {}),
       });
     } catch (error) {
-      this.#logger?.warn('TrueFoundry ServiceFoundry server request failed', {
+      const timedOut = error instanceof Error && error.name === 'TimeoutError';
+      this.#logger.warn('TrueFoundry ServiceFoundry server request failed', {
         url: input.url.href,
         method: input.method,
         durationMs: Date.now() - startedAt,
+        timedOut,
         ...extractErrorLogFields(error),
       });
       throw new HTTPException(500, {
-        message: 'TrueFoundry ServiceFoundry server request failed',
+        message: timedOut
+          ? `TrueFoundry ServiceFoundry server request timed out after ${String(timeoutMs / 1000)}s`
+          : 'TrueFoundry ServiceFoundry server request failed',
         cause: error,
       });
     }
-    this.#logger?.info('TrueFoundry ServiceFoundry server request completed', {
+    this.#logger.info('TrueFoundry ServiceFoundry server request completed', {
       url: input.url.href,
       method: input.method,
       status: response.status,
@@ -354,6 +434,9 @@ export class TrueFoundryServiceFoundryServerClient {
       throw new HTTPException(response.status, {
         message: 'TrueFoundry ServiceFoundry server rejected the request',
       });
+    }
+    if (response.status === 404 && input.notFoundOk) {
+      return undefined;
     }
     if (!response.ok) {
       const detail = await readServiceFoundryErrorMessage(response);
@@ -371,7 +454,7 @@ export class TrueFoundryServiceFoundryServerClient {
     try {
       return JSON.parse(text) as unknown;
     } catch (error) {
-      this.#logger?.error('TrueFoundry ServiceFoundry server returned non-JSON', {
+      this.#logger.error('TrueFoundry ServiceFoundry server returned non-JSON', {
         url: input.url.href,
         ...extractErrorLogFields(error),
       });

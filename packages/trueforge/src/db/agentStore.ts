@@ -31,6 +31,12 @@ export function parseStoredAgentSpec(manifest: unknown): AgentSpec {
 /** Look up by immutable id or unique name within a tenant. */
 export type GetAgentInput = { tenant_id: string } & ({ id: string } | { name: string });
 
+export interface ListAgentsInput {
+  tenant_id: string;
+  /** When set, only agents whose `external_id` is in this list. */
+  external_ids?: readonly string[];
+}
+
 export interface CreateAgentInput {
   tenant_id: string;
   name: ResourceName;
@@ -82,7 +88,7 @@ export class AgentExternalIdConflictError extends Error {
 }
 
 export interface IAgentStore<TTransaction = never> {
-  listAgents(tenantId: string, transaction?: TTransaction): Promise<AgentRecord[]>;
+  listAgents(input: ListAgentsInput, transaction?: TTransaction): Promise<AgentRecord[]>;
   getAgent(input: GetAgentInput, transaction?: TTransaction): Promise<AgentRecord | undefined>;
   /** Inserts a new agent with a generated ULID. Throws AgentNameConflictError or AgentExternalIdConflictError on unique clash. */
   createAgent(input: CreateAgentInput, transaction?: TTransaction): Promise<AgentRecord>;
