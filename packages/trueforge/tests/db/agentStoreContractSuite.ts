@@ -2,10 +2,16 @@
  * Backend-agnostic behavioural contract for IAgentStore.
  * Runs under jest against a fresh store per test (see backend test files).
  */
-import { AgentSpecSchema, type AgentSpec } from '@truefoundry/trueforge-core/agent-session';
+import { AgentSpecSchema, type AgentSpec, type CreatedBySubject } from '@truefoundry/trueforge-core/agent-session';
 import { AgentExternalIdConflictError, AgentNameConflictError, type IAgentStore } from '../../src/db/agentStore';
 
 const TENANT = 'default';
+
+const CREATED_BY_SUBJECT: CreatedBySubject = {
+  subject_id: 'tester',
+  subject_type: 'user',
+  subject_display_name: 'tester',
+};
 
 function manifest(overrides: Partial<AgentSpec> = {}): AgentSpec {
   return AgentSpecSchema.parse({
@@ -22,6 +28,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     const created = await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'research',
       manifest: manifest(),
       external_id: null,
@@ -32,6 +39,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     expect(created.id.length).toBeGreaterThan(0);
     expect(created.manifest).toEqual(manifest());
     expect(created.external_id).toBeNull();
+    expect(created.created_by_subject).toEqual(CREATED_BY_SUBJECT);
     expect(created.created_at).toMatch(ISO_UTC);
     expect(created.updated_at).toBe(created.created_at);
 
@@ -52,6 +60,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     const created = await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'research',
       manifest: manifest(),
       external_id: null,
@@ -96,6 +105,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'research',
       manifest: manifest(),
       external_id: null,
@@ -104,6 +114,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     await expect(
       store.createAgent({
         tenant_id: TENANT,
+        created_by_subject: CREATED_BY_SUBJECT,
         name: 'research',
         manifest: manifest(),
         external_id: null,
@@ -115,18 +126,21 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'zeta',
       manifest: manifest(),
       external_id: null,
     });
     await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'alpha',
       manifest: manifest({ instructions: 'Alpha agent.' }),
       external_id: null,
     });
     await store.createAgent({
       tenant_id: 'other-tenant',
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'research',
       manifest: manifest(),
       external_id: null,
@@ -141,6 +155,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     const created = await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'research',
       manifest: manifest(),
       external_id: null,
@@ -153,6 +168,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     const created = await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'research',
       manifest: manifest(),
       external_id: 'sf-agent-1',
@@ -165,6 +181,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'alpha',
       manifest: manifest(),
       external_id: 'shared-key',
@@ -172,6 +189,7 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     await expect(
       store.createAgent({
         tenant_id: TENANT,
+        created_by_subject: CREATED_BY_SUBJECT,
         name: 'beta',
         manifest: manifest(),
         external_id: 'shared-key',
@@ -179,18 +197,32 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     ).rejects.toBeInstanceOf(AgentExternalIdConflictError);
     await store.createAgent({
       tenant_id: 'other-tenant',
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'alpha',
       manifest: manifest(),
       external_id: 'shared-key',
     });
-    await store.createAgent({ tenant_id: TENANT, name: 'gamma', manifest: manifest(), external_id: null });
-    await store.createAgent({ tenant_id: TENANT, name: 'delta', manifest: manifest(), external_id: null });
+    await store.createAgent({
+      tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
+      name: 'gamma',
+      manifest: manifest(),
+      external_id: null,
+    });
+    await store.createAgent({
+      tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
+      name: 'delta',
+      manifest: manifest(),
+      external_id: null,
+    });
   });
 
   it('updateAgent can write and clear external_id', async () => {
     const store = getStore();
     const created = await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'research',
       manifest: manifest(),
       external_id: null,
@@ -213,12 +245,14 @@ export function runAgentStoreContractSuite(getStore: () => IAgentStore): void {
     const store = getStore();
     await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'alpha',
       manifest: manifest(),
       external_id: 'shared-key',
     });
     const beta = await store.createAgent({
       tenant_id: TENANT,
+      created_by_subject: CREATED_BY_SUBJECT,
       name: 'beta',
       manifest: manifest(),
       external_id: null,

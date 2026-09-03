@@ -11,6 +11,7 @@ import {
   type IAgentStore,
   type UpdateAgentInput,
 } from '../../agentStore';
+import { parseStoredCreatedBySubject } from '../../createdBySubject';
 import { AGENT_EXTERNAL_ID_UQ } from '../../indexes';
 import { isPgConstraint, isUniqueViolation } from '../client';
 import { json, now } from '../sqlExpressions';
@@ -23,6 +24,7 @@ function toRecord(row: Selectable<AgentTable>): AgentRecord {
     name: row.name,
     manifest: parseStoredAgentSpec(row.manifest),
     external_id: row.external_id,
+    created_by_subject: parseStoredCreatedBySubject(row.created_by_subject),
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
   };
@@ -82,6 +84,7 @@ export class PostgresAgentStore implements IAgentStore<Transaction<Database>> {
           name: input.name,
           manifest: json(input.manifest),
           external_id: input.external_id,
+          created_by_subject: json(input.created_by_subject),
           created_at: now(),
           updated_at: now(),
         })

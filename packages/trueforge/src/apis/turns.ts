@@ -508,9 +508,15 @@ export function resolveAfterSequenceNumber(c: Context, bodyAfterSequenceNumber?:
   return bodyAfterSequenceNumber;
 }
 
-/** True when the subject is the session creator (`created_by`). */
-function checkTurnAccess({ subject_id, createdBy }: { subject_id: string; createdBy: string }): boolean {
-  return createdBy === subject_id;
+/** True when the subject is the session creator (`created_by_subject.subject_id`). */
+function checkTurnAccess({
+  subject_id,
+  created_by_subject,
+}: {
+  subject_id: string;
+  created_by_subject: { subject_id: string };
+}): boolean {
+  return created_by_subject.subject_id === subject_id;
 }
 
 const FORBIDDEN_SESSION_ACCESS = 'Only the session creator can access this session';
@@ -532,7 +538,7 @@ export function createTurnsRouter(deps: TurnsRouterDeps) {
     if (
       !checkTurnAccess({
         subject_id: requestContext.subject.id,
-        createdBy: session.record.created_by,
+        created_by_subject: session.record.created_by_subject,
       })
     ) {
       return c.json({ error: { message: FORBIDDEN_SESSION_ACCESS } }, 403);
@@ -564,7 +570,7 @@ export function createTurnsRouter(deps: TurnsRouterDeps) {
     if (
       !checkTurnAccess({
         subject_id: requestContext.subject.id,
-        createdBy: session.record.created_by,
+        created_by_subject: session.record.created_by_subject,
       })
     ) {
       return c.json({ error: { message: FORBIDDEN_SESSION_ACCESS } }, 403);
@@ -596,7 +602,7 @@ export function createTurnsRouter(deps: TurnsRouterDeps) {
       if (
         !checkTurnAccess({
           subject_id: requestContext.subject.id,
-          createdBy: session.record.created_by,
+          created_by_subject: session.record.created_by_subject,
         })
       ) {
         return c.json({ error: { message: FORBIDDEN_SESSION_ACCESS } }, 403);
@@ -661,7 +667,7 @@ export function createTurnsRouter(deps: TurnsRouterDeps) {
     if (
       !checkTurnAccess({
         subject_id: requestContext.subject.id,
-        createdBy: session.record.created_by,
+        created_by_subject: session.record.created_by_subject,
       })
     ) {
       return c.json({ error: { message: FORBIDDEN_SESSION_ACCESS } }, 403);
@@ -700,7 +706,7 @@ export function createTurnsRouter(deps: TurnsRouterDeps) {
     if (
       !checkTurnAccess({
         subject_id: requestContext.subject.id,
-        createdBy: session.record.created_by,
+        created_by_subject: session.record.created_by_subject,
       })
     ) {
       return c.json({ error: { message: FORBIDDEN_CREATE_TURN } }, 403);
@@ -772,7 +778,7 @@ export function createTurnsRouter(deps: TurnsRouterDeps) {
     if (
       !checkTurnAccess({
         subject_id: requestContext.subject.id,
-        createdBy: session.record.created_by,
+        created_by_subject: session.record.created_by_subject,
       })
     ) {
       return c.json({ error: { message: FORBIDDEN_SESSION_ACCESS } }, 403);
