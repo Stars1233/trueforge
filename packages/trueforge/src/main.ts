@@ -51,7 +51,7 @@ import {
   type TurnStreamingEvent,
 } from '@truefoundry/trueforge-core/agent-session';
 import { RequestReplyExecutor, RequestReplyRouter } from '@truefoundry/trueforge-core/request-reply';
-import type { Transaction } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 import type { RedisClientType } from 'redis';
 import type { Logger } from 'winston';
 
@@ -197,8 +197,9 @@ function buildResolveMcpServerStore<TTransaction>(options: {
 function buildResolveAgentStore(options: {
   persistenceStore: PostgresAgentStore;
   client: TrueFoundryServiceFoundryServerClient | undefined;
+  db: Kysely<PostgresDatabase>;
 }): (c?: Context) => IAgentStore<Transaction<PostgresDatabase>> {
-  const { persistenceStore, client } = options;
+  const { persistenceStore, client, db } = options;
   if (!client) {
     return () => persistenceStore;
   }
@@ -209,6 +210,7 @@ function buildResolveAgentStore(options: {
           inner: persistenceStore,
           client,
           accessToken: requireRequestCredentialToken(c),
+          db,
         })
       : persistenceStore;
 }
@@ -348,6 +350,7 @@ async function createDistributedPersistence(options: {
     resolveAgentStore: buildResolveAgentStore({
       persistenceStore: agentStore,
       client: serviceFoundryClient,
+      db,
     }),
     withTransaction: callback => db.transaction().execute(callback),
     tokenStore,
