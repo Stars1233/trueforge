@@ -231,6 +231,7 @@ jobs:
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
             echo "Published @truefoundry/trueforge@$VERSION"
+            sleep 30
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
             echo "version=" >> "$GITHUB_OUTPUT"
