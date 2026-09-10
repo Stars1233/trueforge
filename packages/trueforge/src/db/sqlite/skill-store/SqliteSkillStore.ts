@@ -1,9 +1,10 @@
 import type { ExpressionBuilder, Kysely, Transaction } from 'kysely';
-import type { SkillManifest } from '../../../schemas/skill';
+import type { SkillManifest, SkillVersion } from '../../../schemas/skill';
+import { validateGitAgentSkills } from '../../gitSkillMounts';
 import {
   SkillNameConflictError,
+  type AgentSkillsInput,
   type CreateSkillInput,
-  type GetSkillInput,
   type ISkillStore,
   type ListSkillsInput,
   type SkillRecord,
@@ -41,16 +42,6 @@ export class SqliteSkillStore implements ISkillStore<Transaction<Database>> {
       query = query.where('name', 'in', [...input.names]);
     }
     return await query.orderBy('name').execute();
-  }
-
-  async getSkill(input: GetSkillInput, transaction?: Transaction<Database>): Promise<SkillRecord | undefined> {
-    const db = transaction ?? this.#db;
-    return await db
-      .selectFrom('skill')
-      .select(recordColumns)
-      .where('tenant_id', '=', input.tenant_id)
-      .where('name', '=', input.name)
-      .executeTakeFirst();
   }
 
   async createSkill(input: CreateSkillInput, transaction?: Transaction<Database>): Promise<SkillRecord> {
@@ -96,5 +87,15 @@ export class SqliteSkillStore implements ISkillStore<Transaction<Database>> {
       )
       .returning(recordColumns)
       .executeTakeFirstOrThrow();
+  }
+
+  listSkillVersions(input: { name: string }): Promise<SkillVersion[]> {
+    void input;
+    return Promise.resolve([]);
+  }
+
+  validateAgentSkills(input: AgentSkillsInput, transaction?: Transaction<Database>): Promise<void> {
+    void transaction;
+    return validateGitAgentSkills(this, input);
   }
 }

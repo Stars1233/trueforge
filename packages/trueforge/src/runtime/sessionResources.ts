@@ -23,6 +23,7 @@ import { LocalSandboxProvider } from '../sandbox/local/provider/LocalSandboxProv
 import { getCachedLocalSandboxSupport, isLocalSandboxFallbackEnabled } from '../sandbox/localRuntime';
 import { toSandboxProviderFromRecord } from '../sandbox/providerUtils';
 import type { ReasoningEffort } from '../schemas/modelProvider';
+import { parseGitSkill } from '../schemas/skill';
 
 export interface McpConnection {
   url: string;
@@ -129,7 +130,7 @@ export async function getMcpConnection({
 /**
  * Expand agent_spec skill names into git mounts from the skill store.
  * Wire url/path/ref/description on the request are ignored — the store row wins.
- * Throws HTTPException(422) if any name is not registered.
+ * Throws HTTPException(422) if any name is missing or not a git skill.
  */
 export async function resolveGitSkills({
   tenant_id,
@@ -154,13 +155,19 @@ export async function resolveGitSkills({
         message: `Unknown skill "${skill.name}" — not configured`,
       });
     }
+    const git = parseGitSkill(record.manifest);
+    if (git === undefined) {
+      throw new HTTPException(422, {
+        message: `Skill "${skill.name}" is not a git skill`,
+      });
+    }
     resolved.push({
       type: 'git',
-      name: record.manifest.name,
-      description: record.manifest.description,
-      url: record.manifest.url,
-      path: record.manifest.path ?? '',
-      ref: record.manifest.ref,
+      name: git.name,
+      description: git.description,
+      url: git.url,
+      path: git.path ?? '',
+      ref: git.ref,
     });
   }
   return resolved;
@@ -238,7 +245,7 @@ export function buildTurnSandbox(input: {
 /**
  * Cross-checks an AgentSpec against configured models / MCP / skills and
  * sandbox capability. Throws HTTPException(422) for semantic failures.
- * Skills are admitted by name only; mounts expand at turn time.
+ * Skills must exist in the skill store (git name) or pass SFY resolve (registry FQN).
  */
 export async function validateAgentSpec({
   spec,
@@ -293,14 +300,7 @@ export async function validateAgentSpec({
 
   const requestedSkills = spec.skills ?? [];
   if (requestedSkills.length > 0) {
-    const names = requestedSkills.map(skill => skill.name);
-    const configuredNames = new Set((await skillStore.listSkills({ tenant_id, names })).map(record => record.name));
-    const unknown = requestedSkills.find(skill => !configuredNames.has(skill.name));
-    if (unknown !== undefined) {
-      throw new HTTPException(422, {
-        message: `Unknown skill "${unknown.name}" — not configured`,
-      });
-    }
+    await skillStore.validateAgentSkills({ tenant_id, skills: requestedSkills });
   }
 
   const wantsSandbox = spec.config.sandbox.enabled;

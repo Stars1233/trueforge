@@ -283,4 +283,54 @@ describe('validateAgentSpec', () => {
     ).resolves.toBeUndefined();
     expect(await stores.sandboxProviderStore.getSandboxProvider('default')).toBeUndefined();
   });
+
+  it('allows registry skills referenced by version FQN', async () => {
+    const stores = await setup();
+    setCachedLocalSandboxSupport({
+      supported: true,
+      platform: 'darwin',
+      shell: '/bin/bash',
+      python: '/usr/bin/python3',
+    });
+    const fqn = 'agent-skill:acme/team-a/echo:1';
+    const now = '2026-01-01T00:00:00.000Z';
+    const skillStore = {
+      listSkills: async () => [
+        {
+          tenant_id: 'default',
+          name: fqn,
+          manifest: {
+            type: 'truefoundry' as const,
+            name: fqn,
+            display_name: 'echo',
+            description: 'Echo',
+            repository_name: 'team-a',
+            version: 1,
+          },
+          created_at: now,
+          updated_at: now,
+        },
+      ],
+      validateAgentSkills: async () => undefined,
+      createSkill: async () => {
+        throw new Error('unused');
+      },
+      upsertSkill: async () => {
+        throw new Error('unused');
+      },
+      listSkillVersions: async () => [],
+    };
+    await expect(
+      validateAgentSpec({
+        spec: AgentSpecSchema.parse({
+          model: { name: 'test-provider/test-model' },
+          instructions: 'test',
+          skills: [{ name: fqn }],
+        }),
+        tenant_id: 'default',
+        ...stores,
+        skillStore,
+      }),
+    ).resolves.toBeUndefined();
+  });
 });
