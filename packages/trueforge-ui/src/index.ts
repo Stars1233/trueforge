@@ -441,7 +441,7 @@ export { AgentDetailsUnavailable } from './atoms/agent-details/AgentDetailsUnava
 export { AgentMetricCard } from './atoms/agent-details/AgentMetricCard.js';
 export { AgentMetricChart } from './atoms/agent-details/AgentMetricChart.js';
 export { AgentMetricsTimeRangeFilter } from './atoms/agent-details/AgentMetricsTimeRangeFilter.js';
-export { AgentMetricsView } from './atoms/agent-details/AgentMetricsView.js';
+export { AgentMetricStatistics, AgentMetricsView } from './atoms/agent-details/AgentMetricsView.js';
 export { AgentOverviewCard } from './atoms/agent-details/AgentOverviewCard.js';
 export type {
   AgentCodeBlockProps,
@@ -454,6 +454,7 @@ export type {
   AgentMetricCardProps,
   AgentMetricChartProps,
   AgentMetricChartResult,
+  AgentMetricStatisticsProps,
   AgentMetricsProps,
   AgentMetricsTimeRangeFilterProps,
   AgentMetricsViewProps,
