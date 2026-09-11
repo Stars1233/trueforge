@@ -95,9 +95,10 @@ controller:
       cpu: 100m
       memory: 256Mi
       ephemeral-storage: 256Mi
-# Controller -> server API key (TRUEFORGE_API_KEY). string, or
-# { valueFrom: { secretKeyRef: { name, key } } }. Replace the dev default
-# before any shared deployment; the chart never creates a Secret for it.
+# Controller → server API key (TRUEFORGE_API_KEY). Dev default is a known
+# placeholder — strongly recommended to create a Secret and set:
+#   apiKey: { valueFrom: { secretKeyRef: { name: trueforge-api-key, key: TRUEFORGE_API_KEY } } }
+# The chart never creates that Secret. A plain string also works for local trials.
 apiKey: "placeholder-value-please-generate-your-own"
 # Extra env for BOTH server and controller: name -> scalar or { valueFrom: ... }.
 # A key that matches a chart-computed variable (POSTGRES_HOST, PUBLIC_BASE_URL,
